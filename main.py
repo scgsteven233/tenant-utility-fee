@@ -1,5 +1,7 @@
 from fastapi import FastAPI, Request
 from calculator import calculate_fees
+import uvicorn
+import os
 
 app = FastAPI()
 
