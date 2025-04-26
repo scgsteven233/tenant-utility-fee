@@ -1,0 +1,19 @@
+{
+  "name": "fred-rent-calculator",
+  "build": {
+    "dockerfile": "Dockerfile"
+  },
+  "runArgs": [
+    "--privileged"
+  ],
+  "forwardPorts": [2222],
+  "mounts": [
+  ],
+  "postCreateCommand": "echo '📦 Ready!'",
+  "remoteUser": "dev",
+  "extensions": [
+    "ms-azuretools.vscode-docker",
+    "ms-python.python",
+    "dbaeumer.vscode-eslint"
+  ]
+}
