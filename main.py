@@ -24,7 +24,7 @@ class CrossMonthRequest(BaseModel):
 # ----- FastAPI App ----- #
 app = FastAPI()
 
-@app.post("/api/cross-month", response_model=Dict[str, Any])
+@app.post("/api/calculator", response_model=Dict[str, Any])
 async def cross_month(req: CrossMonthRequest):
     """
     跨月費用計算
