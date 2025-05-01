@@ -10,7 +10,7 @@ async def calculate(request: Request):
     try:
         data = await request.json()
         result = calculate_fees(data)
-        return {"result": result}
+        return result
     except Exception as e:
         # 把錯誤記錄下來，幫助 debug
         return {"error": str(e)}
