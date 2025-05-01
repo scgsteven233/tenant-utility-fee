@@ -6,10 +6,11 @@ import uvicorn
 import os
 
 class Bill(BaseModel):
-    month: str                    = Field(..., regex=r"^\d{4}-\d{2}$")
-    water_fee: float              = Field(..., ge=0, description="本月水費 💧")
-    electricity_fee: float        = Field(..., ge=0, description="本月電費 ⚡")
-    internet_fee: float           = Field(..., ge=0, description="本月網路費 🌐")
+    month: str = Field(..., pattern=r"^\d{4}-\d{2}$")
+    water_fee: float = Field(..., ge=0, description="水費 💧")
+    electricity_fee: float = Field(..., ge=0, description="電費 ⚡")
+    internet_fee: float = Field(..., ge=0, description="網路費 🌐")
+
 
 class Tenant(BaseModel):
     name: str
