@@ -1,7 +1,11 @@
 from datetime import datetime
 
-def parse_date(s):
-    return datetime.strptime(s, "%Y-%m-%d")
+def parse_date(date_str):
+    # 避免萬一某個欄位真的不是字串，導致 date_str[:10] 報錯
+    if not isinstance(date_str, str):
+        date_str = str(date_str)
+    # 把 "2025-04-09T16:00:00.000Z" 變成 "2025-04-09"
+    return datetime.strptime(date_str[:10], "%Y-%m-%d")
 
 def calculate_fees(data):
     tenants = data["tenants"]  # list of {name, move_in, move_out}
