@@ -7,9 +7,13 @@ app = FastAPI()
 
 @app.post("/api/calculate")
 async def calculate(request: Request):
-    data = await request.json()
-    result = calculate_fees(data)
-    return result
+    try:
+        data = await request.json()
+        result = calculate_fees(data)
+        return {"result": result}
+    except Exception as e:
+        # 把錯誤記錄下來，幫助 debug
+        return {"error": str(e)}
 
 # 加這段，讓程式可以直接 run 起來
 if __name__ == "__main__":
