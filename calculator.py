@@ -1,73 +1,102 @@
 from datetime import datetime, timedelta
 from collections import defaultdict
+from typing import List, Dict
 
-def parse_date(date_str):
-    """轉換日期字串為 datetime 物件，只取日期部分"""
+
+def parse_date(date_str: str) -> datetime:
+    """將字串轉換成 datetime 物件，只取日期部分"""
     return datetime.strptime(date_str[:10], "%Y-%m-%d")
 
-def calculate_fees(data):
+
+def parse_month(month_str: str) -> datetime:
+    """將 YYYY-MM 轉為該月第一天的 datetime"""
+    return datetime.strptime(month_str, "%Y-%m")
+
+
+def month_range(start: datetime, end: datetime) -> List[str]:
+    """回傳 start 到 end 的所有月份（YYYY-MM）"""
+    months = []
+    current = start.replace(day=1)
+    while current <= end:
+        months.append(current.strftime("%Y-%m"))
+        if current.month == 12:
+            current = current.replace(year=current.year + 1, month=1)
+        else:
+            current = current.replace(month=current.month + 1)
+    return months
+
+
+def calculate_cross_month_fees(data: Dict) -> Dict:
+    bills = {bill["month"]: bill for bill in data["bills"]}
     tenants = data["tenants"]
-    month_start = parse_date(data["month_start"])
-    month_end = parse_date(data["month_end"])
-    water_fee = data["water_fee"]
-    internet_fee = data["internet_fee"]
-    electricity_fee = data["electricity_fee"]
-    total_fee = water_fee + internet_fee + electricity_fee
 
-    # 計算當月內每人實際居住天數
-    total_lived_days = 0
-    days_map = []
-    for t in tenants:
-        move_in = max(parse_date(t["move_in"]), month_start)
-        move_out = min(parse_date(t["move_out"]), month_end)
-        days = (move_out - move_in).days + 1
-        days = max(days, 0)
-        days_map.append(days)
-        total_lived_days += days
+    # Step 1: 建立所有月份的人日統計資料
+    per_day_costs = {}
+    month_days = defaultdict(list)  # 每月每人佔幾天
 
-    # 若本月總人日為 0，避免除以 0 錯誤
-    per_day_fee = total_fee / total_lived_days if total_lived_days > 0 else 0
+    all_move_in = min(parse_date(t["move_in"]) for t in tenants)
+    all_move_out = max(parse_date(t["move_out"]) for t in tenants)
+    months = month_range(all_move_in, all_move_out)
 
-    results = []
-    tenant_total_map = defaultdict(float)
-
-    for i, t in enumerate(tenants):
-        days = days_map[i]
-        month_fee = round(per_day_fee * days, 2)
-        results.append({
-            "name": t["name"],
-            "days": days,
-            "fee": month_fee
-        })
-        tenant_total_map[t["name"]] += month_fee
-
-    # ⭐ 額外：計算遷出前的總費用（跨月）
-    # 根據前一月的人日單價估算未出帳月份
-    prev_per_day_fee = per_day_fee  # 預估單價（若未來要查詢歷史紀錄可改進）
-
-    for t in tenants:
-        move_in = parse_date(t["move_in"])
-        move_out = parse_date(t["move_out"])
-        current = month_end + timedelta(days=1)
-        while current <= move_out:
-            start = current.replace(day=1)
-            if current.month == 12:
-                end = current.replace(year=current.year + 1, month=1, day=1) - timedelta(days=1)
+    for month in months:
+        bill = bills.get(month)
+        if bill:
+            start = parse_month(month)
+            if start.month == 12:
+                end = start.replace(year=start.year + 1, month=1) - timedelta(days=1)
             else:
-                end = current.replace(month=current.month + 1, day=1) - timedelta(days=1)
+                end = start.replace(month=start.month + 1) - timedelta(days=1)
 
-            # 這個月居住的天數
-            lived_start = max(move_in, start)
-            lived_end = min(move_out, end)
-            days = (lived_end - lived_start).days + 1
-            days = max(days, 0)
-            estimate = round(prev_per_day_fee * days, 2)
-            tenant_total_map[t["name"]] += estimate
-            current = end + timedelta(days=1)
+            # 計算每位房客該月的居住天數
+            total_days = 0
+            for t in tenants:
+                move_in = parse_date(t["move_in"])
+                move_out = parse_date(t["move_out"])
+                lived_start = max(move_in, start)
+                lived_end = min(move_out, end)
+                days = (lived_end - lived_start).days + 1
+                if days > 0:
+                    month_days[month].append({"name": t["name"], "days": days})
+                    total_days += days
+
+            if total_days > 0:
+                per_day_costs[month] = {
+                    "water": bill["water_fee"] / total_days,
+                    "electricity": bill["electricity_fee"] / total_days,
+                    "internet": bill["internet_fee"] / total_days
+                }
+
+    # Step 2: 計算每人每月費用（估算未出帳月份）
+    tenant_monthly_fees = defaultdict(list)
+    tenant_total = defaultdict(float)
+
+    prev_cost = None
+    for month in months:
+        daily = per_day_costs.get(month, prev_cost)
+        if not daily:
+            continue  # 沒有資料也無法估算
+
+        prev_cost = daily  # 儲存目前或上一個有效單價
+
+        for record in month_days.get(month, []):
+            name = record["name"]
+            days = record["days"]
+            water = round(daily["water"] * days, 2)
+            electricity = round(daily["electricity"] * days, 2)
+            internet = round(daily["internet"] * days, 2)
+            total = round(water + electricity + internet, 2)
+            tenant_monthly_fees[name].append({
+                "month": month,
+                "days": days,
+                "water": water,
+                "electricity": electricity,
+                "internet": internet,
+                "total": total
+            })
+            tenant_total[name] += total
 
     return {
-        "month_result": results,
-        "total_until_move_out": [
-            {"name": name, "total_fee": round(fee, 2)} for name, fee in tenant_total_map.items()
-        ]
+        "per_day_costs": per_day_costs,
+        "tenant_monthly_fees": tenant_monthly_fees,
+        "tenant_total": [{"name": name, "total": round(total, 2)} for name, total in tenant_total.items()]
     }

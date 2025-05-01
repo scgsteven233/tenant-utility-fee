@@ -1,37 +1,39 @@
-from fastapi import FastAPI, Request
+from fastapi import FastAPI
 from pydantic import BaseModel, Field
-from typing import List
-from calculator import calculate_fees
+from typing import List, Dict, Any
+from calculator import calculate_cross_month_fees
 import uvicorn
 import os
 
-# 建立資料模型，讓 FastAPI 幫我們驗證輸入資料 🧱
+class Bill(BaseModel):
+    month: str                    = Field(..., regex=r"^\d{4}-\d{2}$")
+    water_fee: float              = Field(..., ge=0, description="本月水費 💧")
+    electricity_fee: float        = Field(..., ge=0, description="本月電費 ⚡")
+    internet_fee: float           = Field(..., ge=0, description="本月網路費 🌐")
+
 class Tenant(BaseModel):
     name: str
-    move_in: str  # 日期格式預期為 "YYYY-MM-DD" 或包含時間的 ISO 格式
-    move_out: str
+    move_in: str                  = Field(..., regex=r"^\d{4}-\d{2}-\d{2}")
+    move_out: str                 = Field(..., regex=r"^\d{4}-\d{2}-\d{2}")
 
-class CalculationRequest(BaseModel):
-    month_start: str  # "YYYY-MM-DD"
-    month_end: str
-    water_fee: float = Field(..., ge=0, description="本月水費 💧")
-    internet_fee: float = Field(..., ge=0, description="本月網路費 🌐")
-    electricity_fee: float = Field(..., ge=0, description="本月電費 ⚡")
+class CrossMonthRequest(BaseModel):
+    bills: List[Bill]
     tenants: List[Tenant]
 
 app = FastAPI()
 
-@app.post("/api/calculate")
-async def calculate(payload: CalculationRequest):
-    try:
-        # 轉為 dict 傳進 calculator 模組 🚀
-        result = calculate_fees(payload.dict())
-        return result
-    except Exception as e:
-        # 捕捉其他非驗證錯誤 🐞
-        return {"error": str(e)}
+@app.post("/api/cross-month", response_model=Dict[str, Any])
+async def cross_month(req: CrossMonthRequest):
+    """
+    跨月費用計算
+    - per_day_costs: 每月各項人/日單價
+    - tenant_monthly_fees: 每位租客每月分項費用
+    - tenant_total: 每位租客總費用
+    """
+    data = req.model_dump()  # 改用 model_dump() 取代舊的 dict()
+    result = calculate_cross_month_fees(data)
+    return result
 
-# 讓程式可以本地或在 Render 上直接執行 🚦
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 8000))  # Render 會給 PORT，不然預設 8000
+    port = int(os.environ.get("PORT", 8000))
     uvicorn.run("main:app", host="0.0.0.0", port=port)
