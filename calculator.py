@@ -33,7 +33,6 @@ class BillCalculator:
                 end_day = move_out.day if current.year == move_out.year and current.month == move_out.month else days_in_month
                 days = end_day - start_day + 1
 
-                # Add to the month's total days and specific tenant's days
                 self.person_days_by_month[ym][name] = self.person_days_by_month[ym].get(name, 0) + days
                 self.total_days_by_month[ym] += days
 
@@ -45,7 +44,6 @@ class BillCalculator:
         for month, bill in self.bill_data.items():
             total_days = self.total_days_by_month.get(month, 0)
 
-            # If no days in month, all costs are 0
             if total_days == 0:
                 water_per_day = electricity_per_day = internet_per_day = total_per_day = 0
             else:
@@ -54,11 +52,8 @@ class BillCalculator:
                 internet_per_day = round(bill["internet"] / total_days, 2)
                 total_per_day = round(water_per_day + electricity_per_day + internet_per_day, 2)
 
-            # Format the month as "year/month"
-            month_display = month.split("/")[0] + "/" + month.split("/")[1]
-
             results.append({
-                "month": month_display,
+                "month": month,
                 "water": water_per_day,
                 "electricity": electricity_per_day,
                 "internet": internet_per_day,
@@ -69,7 +64,7 @@ class BillCalculator:
 
     def _calculate_individual_costs(self, person_day_sheet):
         results = []
-        # Quick lookup for total per day costs per month
+        # 快速查表：每月人/日總費用
         person_day_lookup = {item["month"]: item["total"] for item in person_day_sheet}
 
         for month, tenants in self.person_days_by_month.items():
@@ -81,7 +76,7 @@ class BillCalculator:
                     "name": name,
                     "month": month,
                     "居住天數": days,
-                    "total_person_days": per_person_day_total,  # This is what you want: the total cost per person per day
+                    "total_person_days": per_person_day_total,  # 這是你要的：每人每日應付總費用
                     "total": total_cost
                 })
 
