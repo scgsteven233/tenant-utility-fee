@@ -33,6 +33,7 @@ class BillCalculator:
                 end_day = move_out.day if current.year == move_out.year and current.month == move_out.month else days_in_month
                 days = end_day - start_day + 1
 
+                # Add to the month's total days and specific tenant's days
                 self.person_days_by_month[ym][name] = self.person_days_by_month[ym].get(name, 0) + days
                 self.total_days_by_month[ym] += days
 
@@ -44,6 +45,7 @@ class BillCalculator:
         for month, bill in self.bill_data.items():
             total_days = self.total_days_by_month.get(month, 0)
 
+            # If no days in month, all costs are 0
             if total_days == 0:
                 water_per_day = electricity_per_day = internet_per_day = total_per_day = 0
             else:
@@ -52,7 +54,7 @@ class BillCalculator:
                 internet_per_day = round(bill["internet"] / total_days, 2)
                 total_per_day = round(water_per_day + electricity_per_day + internet_per_day, 2)
 
-            # Correct format for month to be "year/month"
+            # Format the month as "year/month"
             month_display = month.split("/")[0] + "/" + month.split("/")[1]
 
             results.append({
