@@ -1,10 +1,34 @@
 from datetime import datetime, timedelta
 from collections import defaultdict
 import calendar
+from dateutil import parser  # ⬅️ 新增
+
+def parse_date_safe(date_str):
+    """接受多種格式的日期字串並轉為 datetime 物件"""
+    try:
+        return datetime.strptime(date_str, "%Y/%m/%d")
+    except ValueError:
+        try:
+            return parser.parse(date_str)
+        except Exception as e:
+            raise ValueError(f"無法解析日期字串：{date_str}") from e
+
+def normalize_month_key(month_str):
+    """將任意格式的月份（如 2025-01-31T00:00:00Z）統一成 'YYYY/M'"""
+    dt = parse_date_safe(month_str)
+    return f"{dt.year}/{dt.month}"
 
 class BillCalculator:
     def __init__(self, bill_data, tenant_data):
-        self.bill_data = {item["month"]: item for item in bill_data}
+        # ✅ 將月份 key 標準化成 "YYYY/M"
+        self.bill_data = {
+            normalize_month_key(item["month"]): {
+                "water": item["water"],
+                "electricity": item["electricity"],
+                "internet": item["internet"]
+            }
+            for item in bill_data
+        }
         self.tenant_data = tenant_data
         self.person_days_by_month = defaultdict(dict)   # {month: {tenant: days}}
         self.total_days_by_month = defaultdict(int)     # {month: total_days_all_people}
@@ -21,8 +45,8 @@ class BillCalculator:
     def _calculate_person_days(self):
         for tenant in self.tenant_data:
             name = tenant["name"]
-            move_in = datetime.strptime(tenant["move_in"], "%Y/%m/%d")
-            move_out = datetime.strptime(tenant["move_out"], "%Y/%m/%d")
+            move_in = parse_date_safe(tenant["move_in"])
+            move_out = parse_date_safe(tenant["move_out"])
 
             current = move_in
             while current <= move_out:
@@ -76,7 +100,7 @@ class BillCalculator:
                     "name": name,
                     "month": month,
                     "居住天數": days,
-                    "total_person_days": per_person_day_total,  # 這是你要的：每人每日應付總費用
+                    "total_person_days": per_person_day_total,
                     "total": total_cost
                 })
 
