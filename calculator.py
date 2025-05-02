@@ -1,34 +1,10 @@
 from datetime import datetime, timedelta
 from collections import defaultdict
 import calendar
-from dateutil import parser  # ⬅️ 新增
-
-def parse_date_safe(date_str):
-    """接受多種格式的日期字串並轉為 datetime 物件"""
-    try:
-        return datetime.strptime(date_str, "%Y/%m/%d")
-    except ValueError:
-        try:
-            return parser.parse(date_str)
-        except Exception as e:
-            raise ValueError(f"無法解析日期字串：{date_str}") from e
-
-def normalize_month_key(month_str):
-    """將任意格式的月份（如 2025-01-31T00:00:00Z）統一成 'YYYY/M'"""
-    dt = parse_date_safe(month_str)
-    return f"{dt.year}/{dt.month}"
 
 class BillCalculator:
     def __init__(self, bill_data, tenant_data):
-        # ✅ 將月份 key 標準化成 "YYYY/M"
-        self.bill_data = {
-            normalize_month_key(item["month"]): {
-                "water": item["water"],
-                "electricity": item["electricity"],
-                "internet": item["internet"]
-            }
-            for item in bill_data
-        }
+        self.bill_data = {item["month"]: item for item in bill_data}
         self.tenant_data = tenant_data
         self.person_days_by_month = defaultdict(dict)   # {month: {tenant: days}}
         self.total_days_by_month = defaultdict(int)     # {month: total_days_all_people}
@@ -45,8 +21,8 @@ class BillCalculator:
     def _calculate_person_days(self):
         for tenant in self.tenant_data:
             name = tenant["name"]
-            move_in = parse_date_safe(tenant["move_in"])
-            move_out = parse_date_safe(tenant["move_out"])
+            move_in = datetime.strptime(tenant["move_in"], "%Y/%m/%d")
+            move_out = datetime.strptime(tenant["move_out"], "%Y/%m/%d")
 
             current = move_in
             while current <= move_out:
@@ -76,8 +52,11 @@ class BillCalculator:
                 internet_per_day = round(bill["internet"] / total_days, 2)
                 total_per_day = round(water_per_day + electricity_per_day + internet_per_day, 2)
 
+            # Correct format for month to be "year/month"
+            month_display = month.split("/")[0] + "/" + month.split("/")[1]
+
             results.append({
-                "month": month,
+                "month": month_display,
                 "water": water_per_day,
                 "electricity": electricity_per_day,
                 "internet": internet_per_day,
@@ -88,7 +67,7 @@ class BillCalculator:
 
     def _calculate_individual_costs(self, person_day_sheet):
         results = []
-        # 快速查表：每月人/日總費用
+        # Quick lookup for total per day costs per month
         person_day_lookup = {item["month"]: item["total"] for item in person_day_sheet}
 
         for month, tenants in self.person_days_by_month.items():
@@ -100,7 +79,7 @@ class BillCalculator:
                     "name": name,
                     "month": month,
                     "居住天數": days,
-                    "total_person_days": per_person_day_total,
+                    "total_person_days": per_person_day_total,  # This is what you want: the total cost per person per day
                     "total": total_cost
                 })
 
